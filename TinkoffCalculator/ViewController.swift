@@ -8,39 +8,177 @@
 import UIKit
 
 
+enum CalculationError: Error {
+    
+    case dividedByZero
+    
+}
+
+
+enum Operation: String {
+    
+    case add = "+"
+    case subtract = "−"
+    case multiply = "×"
+    case divide = "÷"
+    
+    func calculate(_ lhs: Double, _ rhs: Double) throws -> Double {
+        switch self {
+        case .add:
+            return lhs + rhs
+        case .subtract:
+            return lhs - rhs
+        case .multiply:
+            return lhs * rhs
+        case .divide:
+            if rhs == 0 {
+                throw CalculationError.dividedByZero
+            }
+            
+            return lhs / rhs
+        }
+    }
+    
+}
+
+enum CalculationHistoryItem {
+
+    case number(Double)
+    case operation(Operation)
+
+}
+
+
 typealias ButtonData = (
     title: String,
     titleColor: UIColor,
     backgroundColor: UIColor,
     widthMultiplier: CGFloat,
-    heightMultiplier: CGFloat
+    heightMultiplier: CGFloat,
+    onClick: Selector
 )
 
 
 class ViewController: UIViewController {
+    
+    let resultLabel = UILabel()
+    let keyboardView = UIStackView()
+    
+    lazy var numberFormatter: NumberFormatter = {
+        let numberFormatter = NumberFormatter()
+        
+        numberFormatter.usesGroupingSeparator = false
+        numberFormatter.numberStyle = .decimal
+        
+        return numberFormatter
+    }()
+    
+    var calculationHistory: [CalculationHistoryItem] = []
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         self.view.backgroundColor = .systemBackground
         
+        view.addSubview(resultLabel)
+        view.addSubview(keyboardView)
+        
+        setUpResultLabel()
         setUpKeyboardView()
+        
+        resetResultLabel()
+    }
+    
+    func resetResultLabel() {
+        resultLabel.text = "0"
+    }
+    
+    func calculate() throws -> Double {
+        guard case .number(let firstNumber) = calculationHistory[0] else { return 0 }
+        
+        var currentResult = firstNumber
+        
+        for itemIndex in stride(from: 1, to: calculationHistory.count - 1, by: 2) {
+            guard
+                case .operation(let operation) = calculationHistory[itemIndex],
+                case .number(let number) = calculationHistory[itemIndex + 1]
+                else { break }
+            
+            currentResult = try operation.calculate(currentResult, number)
+        }
+        
+        return currentResult
     }
     
     @objc
-    func handleAnyButtonClick(sender: UIButton) {
-        print(sender.titleLabel!.text!)
-    }
+    func clearResultLabel(_ sender: UIButton? = nil) {
+        calculationHistory.removeAll()
 
+        resetResultLabel()
+    }
+    
+    @objc
+    func handleOperationButtonClick(_ sender: UIButton) {
+        guard let buttonText = sender.currentTitle, let buttonOperation = Operation(rawValue: buttonText) else { return }
+        guard let resultText = resultLabel.text, let resultNumber = numberFormatter.number(from: resultText)?.doubleValue else { return }
+        
+        calculationHistory.append(.number(resultNumber))
+        calculationHistory.append(.operation(buttonOperation))
+        
+        resetResultLabel()
+    }
+    
+    @objc
+    func handleDigitOrPeriodButtonClick(_ sender: UIButton) {
+        guard let buttonText = sender.currentTitle, resultLabel.text != "Ошибка" else { return }
+        
+        if buttonText == "." && resultLabel.text?.contains(buttonText) == true { return }
+        
+        if resultLabel.text == "0" {
+            resultLabel.text = buttonText
+        } else {
+            resultLabel.text?.append(buttonText)
+        }
+    }
+    
+    @objc
+    func handleCalculateButtonClick(_ sender: UIButton) {
+        guard let resultText = resultLabel.text, let resultNumber = numberFormatter.number(from: resultText)?.doubleValue else { return }
+        
+        calculationHistory.append(.number(resultNumber))
+        
+        do {
+            let calculationResultNumber = try calculate()
+            
+            resultLabel.text = numberFormatter.string(from: NSNumber(value: calculationResultNumber))
+        } catch {
+            resultLabel.text = "Ошибка"
+        }
+        
+        calculationHistory.removeAll()
+    }
+    
 }
 
 extension ViewController {
     
-    func setUpKeyboardView() {
-        let keyboardView = UIStackView()
-
-        view.addSubview(keyboardView)
+    func setUpResultLabel() {
+        resultLabel.font = .systemFont(ofSize: 90)
+        resultLabel.textColor = .label
+        resultLabel.textAlignment = .right
+        resultLabel.adjustsFontSizeToFitWidth = true
         
+        resultLabel.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            resultLabel.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            resultLabel.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            resultLabel.bottomAnchor.constraint(equalTo: keyboardView.topAnchor, constant: -16),
+        ])
+    }
+    
+    func setUpKeyboardView() {
         keyboardView.axis = .vertical
         
         keyboardView.translatesAutoresizingMaskIntoConstraints = false
@@ -52,35 +190,35 @@ extension ViewController {
         ])
         
         setUpKeyboardRow(on: keyboardView, withButtons:
-            (title: "C", titleColor: .secondaryLabel, backgroundColor: .systemGray3, widthMultiplier: 0.75, heightMultiplier: 0.13),
-            (title: "/", titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13)
+            (title: "C", titleColor: .secondaryLabel, backgroundColor: .systemGray3, widthMultiplier: 0.75, heightMultiplier: 0.13, onClick: #selector(clearResultLabel)),
+            (title: Operation.divide.rawValue, titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleOperationButtonClick))
         )
         setUpKeyboardRow(on: keyboardView, withButtons:
-            (title: "7", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "8", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "9", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "x", titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13)
+            (title: "7", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "8", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "9", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: Operation.multiply.rawValue, titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleOperationButtonClick))
         )
         setUpKeyboardRow(on: keyboardView, withButtons:
-            (title: "4", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "5", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "6", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "−", titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13)
+            (title: "4", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "5", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "6", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: Operation.subtract.rawValue, titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleOperationButtonClick))
         )
         setUpKeyboardRow(on: keyboardView, withButtons:
-            (title: "1", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "2", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "3", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "+", titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13)
+            (title: "1", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "2", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "3", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: Operation.add.rawValue, titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleOperationButtonClick))
         )
         setUpKeyboardRow(on: keyboardView, withButtons:
-            (title: ",", titleColor: .secondaryLabel, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13),
-            (title: "0", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.5, heightMultiplier: 0.13),
-            (title: "=", titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13)
+            (title: ".", titleColor: .secondaryLabel, backgroundColor: .systemGray4, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "0", titleColor: .label, backgroundColor: .systemGray4, widthMultiplier: 0.5, heightMultiplier: 0.13, onClick: #selector(handleDigitOrPeriodButtonClick)),
+            (title: "=", titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleCalculateButtonClick))
         )
     }
     
-    func setUpButton(on keyboardRow: UIStackView, withTitle title: String, withTitleColor titleColor: UIColor, withBackgroundColor backgroundColor: UIColor, withWidthMultiplier widthMultiplier: CGFloat, withHeightMultiplier heightMultiplier: CGFloat) {
+    func setUpButton(on keyboardRow: UIStackView, withTitle title: String, withTitleColor titleColor: UIColor, withBackgroundColor backgroundColor: UIColor, withWidthMultiplier widthMultiplier: CGFloat, withHeightMultiplier heightMultiplier: CGFloat, onClick: Selector) {
         let button = UIButton()
         
         keyboardRow.addArrangedSubview(button)
@@ -91,7 +229,7 @@ extension ViewController {
         button.titleLabel?.font = .systemFont(ofSize: 30)
         button.backgroundColor = backgroundColor
         
-        button.addTarget(self, action: #selector(handleAnyButtonClick), for: .touchUpInside)
+        button.addTarget(self, action: onClick, for: .touchUpInside)
         
         button.translatesAutoresizingMaskIntoConstraints = false
         
@@ -107,7 +245,7 @@ extension ViewController {
         keyboardView.addArrangedSubview(keyboardRow)
         
         for buttonData in withButtons {
-            setUpButton(on: keyboardRow, withTitle: buttonData.title, withTitleColor: buttonData.titleColor, withBackgroundColor: buttonData.backgroundColor, withWidthMultiplier: buttonData.widthMultiplier, withHeightMultiplier: buttonData.heightMultiplier)
+            setUpButton(on: keyboardRow, withTitle: buttonData.title, withTitleColor: buttonData.titleColor, withBackgroundColor: buttonData.backgroundColor, withWidthMultiplier: buttonData.widthMultiplier, withHeightMultiplier: buttonData.heightMultiplier, onClick: buttonData.onClick)
         }
     }
     
