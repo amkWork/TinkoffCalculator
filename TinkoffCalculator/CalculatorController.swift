@@ -41,7 +41,7 @@ enum Operation: String {
     
 }
 
-enum CalculationHistoryItem {
+enum ExpressionItem {
 
     case number(Double)
     case operation(Operation)
@@ -59,7 +59,7 @@ typealias ButtonData = (
 )
 
 
-class ViewController: UIViewController {
+class CalculatorViewController: UIViewController {
     
     let resultLabel = UILabel()
     let keyboardView = UIStackView()
@@ -73,7 +73,8 @@ class ViewController: UIViewController {
         return numberFormatter
     }()
     
-    var calculationHistory: [CalculationHistoryItem] = []
+    var expression: [ExpressionItem] = []
+    var calculationHistory: [(expression: [ExpressionItem], result: Double)] = []
     
     
     override func viewDidLoad() {
@@ -95,14 +96,14 @@ class ViewController: UIViewController {
     }
     
     func calculate() throws -> Double {
-        guard case .number(let firstNumber) = calculationHistory[0] else { return 0 }
+        guard case .number(let firstNumber) = expression[0] else { return 0 }
         
         var currentResult = firstNumber
         
-        for itemIndex in stride(from: 1, to: calculationHistory.count - 1, by: 2) {
+        for itemIndex in stride(from: 1, to: expression.count - 1, by: 2) {
             guard
-                case .operation(let operation) = calculationHistory[itemIndex],
-                case .number(let number) = calculationHistory[itemIndex + 1]
+                case .operation(let operation) = expression[itemIndex],
+                case .number(let number) = expression[itemIndex + 1]
                 else { break }
             
             currentResult = try operation.calculate(currentResult, number)
@@ -112,8 +113,13 @@ class ViewController: UIViewController {
     }
     
     @objc
-    func clearResultLabel(_ sender: UIButton? = nil) {
-        calculationHistory.removeAll()
+    func showCalculationHistory(_ sender: UIButton) {
+        show(CalculationHistoryTableViewController(history: calculationHistory), sender: self)
+    }
+    
+    @objc
+    func clearResultLabel(_ sender: UIButton) {
+        expression.removeAll()
 
         resetResultLabel()
     }
@@ -123,8 +129,8 @@ class ViewController: UIViewController {
         guard let buttonText = sender.currentTitle, let buttonOperation = Operation(rawValue: buttonText) else { return }
         guard let resultText = resultLabel.text, let resultNumber = numberFormatter.number(from: resultText)?.doubleValue else { return }
         
-        calculationHistory.append(.number(resultNumber))
-        calculationHistory.append(.operation(buttonOperation))
+        expression.append(.number(resultNumber))
+        expression.append(.operation(buttonOperation))
         
         resetResultLabel()
     }
@@ -146,7 +152,7 @@ class ViewController: UIViewController {
     func handleCalculateButtonClick(_ sender: UIButton) {
         guard let resultText = resultLabel.text, let resultNumber = numberFormatter.number(from: resultText)?.doubleValue else { return }
         
-        calculationHistory.append(.number(resultNumber))
+        expression.append(.number(resultNumber))
         
         do {
             let calculationResultNumber = try calculate()
@@ -156,12 +162,13 @@ class ViewController: UIViewController {
             resultLabel.text = "Ошибка"
         }
         
-        calculationHistory.removeAll()
+        calculationHistory.append((expression: expression, result: resultNumber))
+        expression.removeAll()
     }
     
 }
 
-extension ViewController {
+extension CalculatorViewController {
     
     func setUpResultLabel() {
         resultLabel.font = .systemFont(ofSize: 90)
@@ -190,7 +197,8 @@ extension ViewController {
         ])
         
         setUpKeyboardRow(on: keyboardView, withButtons:
-            (title: "C", titleColor: .secondaryLabel, backgroundColor: .systemGray3, widthMultiplier: 0.75, heightMultiplier: 0.13, onClick: #selector(clearResultLabel)),
+            (title: "H", titleColor: .secondaryLabel, backgroundColor: .systemGray3, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(showCalculationHistory)),
+            (title: "C", titleColor: .secondaryLabel, backgroundColor: .systemGray3, widthMultiplier: 0.5, heightMultiplier: 0.13, onClick: #selector(clearResultLabel)),
             (title: Operation.divide.rawValue, titleColor: .systemGray5, backgroundColor: .systemBlue, widthMultiplier: 0.25, heightMultiplier: 0.13, onClick: #selector(handleOperationButtonClick))
         )
         setUpKeyboardRow(on: keyboardView, withButtons:
