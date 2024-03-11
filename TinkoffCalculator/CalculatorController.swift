@@ -11,6 +11,7 @@ import UIKit
 enum CalculationError: Error {
     
     case dividedByZero
+    case historyItemNotFound
     
 }
 
@@ -74,7 +75,9 @@ class CalculatorViewController: UIViewController {
     }()
     
     var expression: [ExpressionItem] = []
-    var calculationHistory: [(expression: [ExpressionItem], result: Double)] = []
+    var calculationHistory: [Calculation] = []
+    
+    let calculationHistoryStorage = CalculationHistoryStorage()
     
     
     override func viewDidLoad() {
@@ -89,6 +92,8 @@ class CalculatorViewController: UIViewController {
         setUpKeyboardView()
         
         resetResultLabel()
+        
+        calculationHistory = calculationHistoryStorage.loadHistory()
     }
     
     func resetResultLabel() {
@@ -162,7 +167,11 @@ class CalculatorViewController: UIViewController {
             resultLabel.text = "Ошибка"
         }
         
-        calculationHistory.append((expression: expression, result: resultNumber))
+        let calculation = Calculation(expression: expression, result: resultNumber)
+        
+        calculationHistory.append(calculation)
+        calculationHistoryStorage.setHistory(calculationHistory)
+        
         expression.removeAll()
     }
     

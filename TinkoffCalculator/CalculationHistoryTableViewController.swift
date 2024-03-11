@@ -10,10 +10,10 @@ import UIKit
 
 class CalculationHistoryTableViewController: UITableViewController {
     
-    var calculationHistory: [(expression: [ExpressionItem], result: Double)] = []
+    var calculationHistory: [Calculation] = []
     
     
-    init(history: [(expression: [ExpressionItem], result: Double)]) {
+    init(history: [Calculation]) {
         super.init(style: .insetGrouped)
         
         calculationHistory = history
